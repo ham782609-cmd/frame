@@ -20,16 +20,24 @@
     if (-not (Test-Path $git)) { throw 'Git was not installed. Install it from https://git-scm.com and run this again.' }
   } else { Write-Host '[1/3] Git found.' }
 
+  # Sign in with the GitHub window of Git Credential Manager, whatever this PC's own Git settings say (a PC that used
+  # the GitHub CLI hands GitHub sign-ins to it, and Git then asks for a password in the console, which GitHub refuses).
+  $gcm = @('-c', 'credential.helper=', '-c', 'credential.helper=manager')
+  $env:GIT_TERMINAL_PROMPT = '0'
   if (Test-Path (Join-Path $dir '.git')) {
     Write-Host "[2/3] Frame is already at $dir - updating..."
-    & $git -C $dir pull --ff-only
+    & $git @gcm -C $dir pull --ff-only
   } elseif (Test-Path $dir) {
     throw "$dir already exists and is not a Frame download. Rename or remove it, then run this again."
   } else {
-    Write-Host '[2/3] Downloading Frame. Sign in to GitHub with your invited account when the window opens...'
-    & $git clone $repo $dir
-    if ($LASTEXITCODE -ne 0) { throw 'Download failed. Check that this GitHub account was invited, then run this again.' }
+    Write-Host '[2/3] Downloading Frame. Sign in to GitHub with your invited account in the window that opens...'
+    & $git @gcm clone $repo $dir
+    if ($LASTEXITCODE -ne 0) { throw 'Download failed. Sign in to GitHub in the window with an account invited to Frame, then run this again.' }
   }
+  # Later updates (Frame start) sign in the same way.
+  & $git -C $dir config --local --unset-all credential.helper 2>$null
+  & $git -C $dir config --local --add credential.helper ''
+  & $git -C $dir config --local --add credential.helper manager
 
   Write-Host '[3/3] Setting up...'
   & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dir 'scripts\install-windows.ps1')
