@@ -1,0 +1,36 @@
+# Frame installer for Windows.  Run in PowerShell:   irm https://ham782609-cmd.github.io/frame | iex
+# This only installs Git, downloads the private Frame repository (GitHub sign-in with an invited account)
+# to Desktop\Frame, and runs its own setup. No code or secrets of Frame live here.
+& {
+  $ErrorActionPreference = 'Stop'
+  $repo = 'https://github.com/ham782609-cmd/drv_ax01'
+  $dir  = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Frame'
+  Write-Host ''
+  Write-Host '  Frame installer' -ForegroundColor Cyan
+  Write-Host ''
+
+  $git = (Get-Command git -ErrorAction SilentlyContinue).Source
+  if (-not $git) {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { throw 'winget is missing. Install Git from https://git-scm.com and run this again.' }
+    Write-Host '[1/3] Installing Git (approve the Windows prompt if asked)...'
+    winget install --id Git.Git -e --source winget --silent --accept-package-agreements --accept-source-agreements
+    $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
+    $git = (Get-Command git -ErrorAction SilentlyContinue).Source
+    if (-not $git) { $git = Join-Path $env:ProgramFiles 'Git\cmd\git.exe' }
+    if (-not (Test-Path $git)) { throw 'Git was not installed. Install it from https://git-scm.com and run this again.' }
+  } else { Write-Host '[1/3] Git found.' }
+
+  if (Test-Path (Join-Path $dir '.git')) {
+    Write-Host "[2/3] Frame is already at $dir - updating..."
+    & $git -C $dir pull --ff-only
+  } elseif (Test-Path $dir) {
+    throw "$dir already exists and is not a Frame download. Rename or remove it, then run this again."
+  } else {
+    Write-Host '[2/3] Downloading Frame. Sign in to GitHub with your invited account when the window opens...'
+    & $git clone $repo $dir
+    if ($LASTEXITCODE -ne 0) { throw 'Download failed. Check that this GitHub account was invited, then run this again.' }
+  }
+
+  Write-Host '[3/3] Setting up...'
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dir 'scripts\install-windows.ps1')
+}
